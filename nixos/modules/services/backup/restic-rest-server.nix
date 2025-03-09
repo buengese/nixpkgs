@@ -20,6 +20,23 @@ in
       description = "Listen on a specific IP address and port or unix socket.";
     };
 
+    sslCertificate = lib.mkOption {
+      type = with lib.types; nullOr path;
+      default = null;
+      description = ''
+        Path to TLS PEM public key certificate file (can also include intermediate/CA certificates)
+        Must be set togethere with sslCertificateKey
+      '';
+    };
+
+    sslCertificateKey = lib.mkOption {
+      type = with lib.types; nullOr path;
+      default = null;
+      description = ''
+        Path to TLS PEM private key file.
+      '';
+    };
+
     dataDir = lib.mkOption {
       default = "/var/lib/restic";
       type = lib.types.path;
@@ -42,6 +59,15 @@ in
       description = ''
         Enable private repos.
         Grants access only when a subdirectory with the same name as the user is specified in the repository URL.
+      '';
+    };
+
+    htpasswdFile = lib.mkOption {
+      type = with lib.types; nullOr path;
+      default = null;
+      description = ''
+        Enabled authentication.
+        Multiple users can be specified. Password should be hashed using BCrypt.
       '';
     };
 
@@ -70,6 +96,10 @@ in
           lib.substring 1 6 cfg.listenAddress
         }\";";
       }
+      {
+        assertion = (cfg.sslCertificate != null) == (cfg.sslCertificateKey != null);
+        message = "sslCertificate and sslCertificateKey must be set together";
+      }
     ];
 
     systemd.services.restic-rest-server = {
@@ -87,6 +117,10 @@ in
           ${lib.optionalString cfg.appendOnly "--append-only"} \
           ${lib.optionalString cfg.privateRepos "--private-repos"} \
           ${lib.optionalString cfg.prometheus "--prometheus"} \
+          ${lib.optionalString (cfg.sslCertificate != null) "--tls"} \
+          ${lib.optionalString (cfg.sslCertificate != null) "--tls-cert ${cfg.sslCertificate}"} \
+          ${lib.optionalString (cfg.sslCertificateKey != null) "--tls-key ${cfg.sslCertificateKey}"} \
+          ${lib.optionalString (cfg.htpasswdFile != null) "--htpasswd-file ${cfg.htpasswdFile}"} \
           ${lib.escapeShellArgs cfg.extraFlags} \
         '';
         Type = "simple";
